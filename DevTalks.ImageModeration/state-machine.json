@@ -1,0 +1,57 @@
+﻿{
+  "Comment": "State Machine",
+  "StartAt": "CheckImageType",
+  "States": {
+    "CheckImageType": {
+      "Type": "Task",
+      "Resource": "${CheckImageTypeTask.Arn}",
+      "Next": "ImageAnalysis",
+      "Catch": [
+        {
+          "ErrorEquals": [ "NotSupportedException" ],
+          "Next": "NotSupportedImageType"
+        }
+      ]
+    },
+    "ImageAnalysis": {
+      "Type": "Task",
+      "Resource": "${ImageAnalysisTask.Arn}",
+      "Next": "BlurFaces"
+    },
+    "BlurFaces": {
+      "Type": "Task",
+      "Resource": "${BlurFacesTask.Arn}",
+      "Next": "FinalizeResult"
+    },
+    "FinalizeResult": {
+      "Type": "Parallel",
+      "End": true,
+      "Branches": [
+        {
+          "StartAt": "PrepareResult",
+          "States": {
+            "PrepareResult": {
+              "Type": "Task",
+              "Resource": "${PrepareResultTask.Arn}",
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CleanUp",
+          "States": {
+            "CleanUp": {
+              "Type": "Task",
+              "Resource": "${CleanUpTask.Arn}",
+              "End": true
+            }
+          }
+        }
+      ]
+    },
+    "NotSupportedImageType": {
+      "Type": "Fail",
+      "Cause": "Image type not supported!"
+    }
+  }
+}

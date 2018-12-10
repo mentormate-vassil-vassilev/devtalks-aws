@@ -1,0 +1,193 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+  "Transform" : "AWS::Serverless-2016-10-31",
+  "Description" : "An AWS Serverless Application.",
+
+  "Resources" : {
+
+	"ImageAnalysisTask" : {
+        "Type" : "AWS::Lambda::Function",
+        "Properties" : {
+            "Handler" : "DevTalks.ImageModeration::DevTalks.ImageModeration.ImageAnalysis::Run",            
+            "Role"    : {"Fn::GetAtt" : [ "LambdaRole", "Arn"]},
+            "Runtime" : "dotnetcore2.1",
+            "MemorySize" : 256,
+            "Timeout" : 30,
+            "Code" : {
+                "S3Bucket" : "",
+                "S3Key" : ""
+            }
+        }
+    },
+
+	"BlurFacesTask" : {
+        "Type" : "AWS::Lambda::Function",
+        "Properties" : {
+            "Handler" : "DevTalks.ImageModeration::DevTalks.ImageModeration.BlurFaces::Run",            
+            "Role"    : {"Fn::GetAtt" : [ "LambdaRole", "Arn"]},
+            "Runtime" : "dotnetcore2.1",
+            "MemorySize" : 256,
+            "Timeout" : 30,
+            "Code" : {
+                "S3Bucket" : "",
+                "S3Key" : ""
+            }
+        }
+    },
+
+	"CheckImageTypeTask" : {
+        "Type" : "AWS::Lambda::Function",
+        "Properties" : {
+            "Handler" : "DevTalks.ImageModeration::DevTalks.ImageModeration.ImageAnalysis::CheckImageType",            
+            "Role"    : {"Fn::GetAtt" : [ "LambdaRole", "Arn"]},
+            "Runtime" : "dotnetcore2.1",
+            "MemorySize" : 256,
+            "Timeout" : 30,
+            "Code" : {
+                "S3Bucket" : "",
+                "S3Key" : ""
+            }
+        }
+    },
+
+	"PrepareResultTask" : {
+        "Type" : "AWS::Lambda::Function",
+        "Properties" : {
+            "Handler" : "DevTalks.ImageModeration::DevTalks.ImageModeration.FinalizeResult::PrepareResult",            
+            "Role"    : {"Fn::GetAtt" : [ "LambdaRole", "Arn"]},
+            "Runtime" : "dotnetcore2.1",
+            "MemorySize" : 256,
+            "Timeout" : 30,
+            "Code" : {
+                "S3Bucket" : "",
+                "S3Key" : ""
+            }
+        }
+    },
+
+	"CleanUpTask" : {
+        "Type" : "AWS::Lambda::Function",
+        "Properties" : {
+            "Handler" : "DevTalks.ImageModeration::DevTalks.ImageModeration.FinalizeResult::CleanUp",            
+            "Role"    : {"Fn::GetAtt" : [ "LambdaRole", "Arn"]},
+            "Runtime" : "dotnetcore2.1",
+            "MemorySize" : 256,
+            "Timeout" : 30,
+            "Code" : {
+                "S3Bucket" : "",
+                "S3Key" : ""
+            }
+        }
+    },
+
+	"Bucket" : {
+      "Type" : "AWS::S3::Bucket",
+        "Properties" : {
+          "BucketName" : "devtalks-image-moderation"
+        }
+    },
+
+	"StepFunctionTrigger" : {
+      "Type" : "AWS::Serverless::Function",
+      "DependsOn" : [ "StateMachine" ],
+      "Properties": {
+        "Handler": "DevTalks.ImageModeration::DevTalks.ImageModeration.StepFunctionTrigger::Run",
+        "Runtime": "dotnetcore2.1",
+        "CodeUri": "",
+        "MemorySize": 256,
+        "Timeout": 30,
+        "Role"    : {"Fn::GetAtt" : [ "LambdaRole", "Arn"]},
+        "Environment" : {
+		 "Variables" : {
+		   "StepFunctionArn" : { "Ref" : "StateMachine" },
+		   "AgeLimit": "21"
+		 }
+		},
+		"Events" : {
+		  "DevTalksImageModerationAPI" : {
+		     "Type" : "Api",
+		     "Properties" : {
+		       "Method" : "ANY",
+		       "Path"   : "/upload/{proxy+}"
+		     }
+		   }
+		}
+      }
+	},
+
+    "StateMachine" : {
+        "Type" : "AWS::StepFunctions::StateMachine",
+        "Properties": {
+			"StateMachineName" : "DevTalks-ImageModeration",
+            "RoleArn": { "Fn::GetAtt": [ "StateMachineRole", "Arn" ] },
+            "DefinitionString": { "Fn::Sub": "" }
+        }
+    },
+
+    "LambdaRole" : {
+        "Type" : "AWS::IAM::Role",
+        "Properties" : {
+            "AssumeRolePolicyDocument" : {
+                "Version" : "2012-10-17",
+                "Statement" : [
+                    {
+                        "Action" : [
+                            "sts:AssumeRole"
+                        ],
+                        "Effect" : "Allow",
+                        "Principal" : {
+                            "Service" : [
+                                "lambda.amazonaws.com"
+                            ]
+                        }
+                    }
+                ]
+            },
+            "ManagedPolicyArns" : [
+                "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+				"arn:aws:iam::aws:policy/AmazonRekognitionReadOnlyAccess",
+				"arn:aws:iam::aws:policy/AmazonS3FullAccess",
+				"arn:aws:iam::aws:policy/AWSStepFunctionsFullAccess"
+            ]
+       }
+    },
+
+
+    "StateMachineRole" : {
+        "Type" : "AWS::IAM::Role",
+        "Properties" : {
+            "AssumeRolePolicyDocument" : {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": {"Fn::Sub" : "states.${AWS::Region}.amazonaws.com"}
+                  },
+                  "Action": "sts:AssumeRole"
+                }
+              ]
+            },
+            "Policies" : [{
+                "PolicyName": "StepFunctionLambdaInvoke",
+                "PolicyDocument": {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                    {
+                      "Effect": "Allow",
+                      "Action": [
+                        "lambda:InvokeFunction"
+                      ],
+                      "Resource": "*"
+                    }
+                  ]
+                }
+            }]
+        }
+    }
+
+  },
+
+  "Outputs" : {
+  }
+}
